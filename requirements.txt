@@ -15,7 +15,7 @@ hydra-core==1.3.2
 gym==0.23.0
 gymnasium==1.2.0
 setuptools==80.9.0
-wheel==0.45.1
+wheel==0.46.2
 git+https://github.com/BartekCupial/Minigrid.git@cf73dd148e51276bd675a37e3bfb0bf2b42329b2
 git+https://github.com/balrog-ai/minihack.git@3ecb6da4eadcac7a4dbc5f8e801ccf636e34d7ec
 git+https://github.com/nacloos/baba-is-ai
