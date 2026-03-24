@@ -20,6 +20,14 @@
 
 ## What is HyperAgents?
 
+<div align="center">
+<img src="assets/hyperagent_diagram.png" alt="DGM vs DGM-Hyperagents Architecture" width="800">
+<br>
+<em><strong>Figure:</strong> The Darwin Gödel Machine with Hyperagents (DGM-H) extends the DGM beyond coding tasks. (Top) In the original DGM, a fixed, handcrafted instruction-generation mechanism drives self-improvement — recursive improvement depends on alignment between coding performance and self-modification ability. (Bottom) In the DGM-H, the task agent and meta agent are combined into a single editable program (a hyperagent), making the meta-level improvement mechanism itself subject to modification. This enables metacognitive self-modification across any computable task.</em>
+</div>
+
+<br>
+
 Most self-improving AI systems rely on a **fixed, handcrafted meta-level mechanism** — a higher-level process that modifies the base agent but is itself never modified. This creates a fundamental bottleneck: the system can only improve within the boundaries defined by its static improvement procedure.
 
 **HyperAgents** removes this bottleneck. A *hyperagent* is a single, self-referential program that unifies two roles:
