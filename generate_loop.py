@@ -36,6 +36,7 @@ from utils.gl_utils import (
     get_score,
     load_archive_data,
     run_commands_to_check_compilation,
+    run_smoke_test,
     select_parent,
     setup_initial_gen,
     update_and_save_archive,
@@ -151,14 +152,60 @@ def select_next_parent_container(
         exec_result = container.exec_run(cmd=command, workdir=f"/{REPO_NAME}")
         log_container_output(exec_result, verbose=True)
 
+        # Fail-fast on deterministic script errors (won't succeed on retry)
+        if exec_result.exit_code != 0:
+            output_text = (
+                exec_result.output.decode()
+                if exec_result.output else ""
+            )
+            output_lower = output_text.lower()
+            _deterministic_markers = [
+                "syntaxerror", "syntax error",
+                "importerror", "import error", "no module named",
+                "nameerror", "name error",
+                "attributeerror", "attribute error",
+                "typeerror", "type error",
+                "indentationerror", "indentation error",
+                "traceback (most recent call last)",
+            ]
+            if any(marker in output_lower for marker in _deterministic_markers):
+                raise RuntimeError(
+                    "Deterministic script failure"
+                    " in select_next_parent"
+                    f" (exit code"
+                    f" {exec_result.exit_code}):"
+                    f" {output_text[-500:]}"
+                )
+
         # Get next parent outputs
         container_output_strings = exec_result.output.decode().strip().split("\n")
         next_parent_genid = container_output_strings[-1]
-        next_parent_genid = int(next_parent_genid) if not is_starting_node(next_parent_genid) else next_parent_genid
+        if not is_starting_node(next_parent_genid):
+            next_parent_genid = int(next_parent_genid)
+
+    except RuntimeError as e:
+        # Deterministic errors — do not retry
+        safe_log(
+            "Deterministic error in"
+            " select_next_parent_container,"
+            f" not retrying: {e}"
+        )
+        update_node_metadata(
+            generate_output_dir, latest_node,
+            {"can_select_next_parent": False},
+        )
+        next_parent_genid = None
+        max_attempts = 0  # Prevent retry below
 
     except Exception as e:
-        safe_log(f"Error in select_next_parent_container: {e}")
-        update_node_metadata(generate_output_dir, latest_node, {"can_select_next_parent": False})
+        safe_log(
+            "Error in"
+            f" select_next_parent_container: {e}"
+        )
+        update_node_metadata(
+            generate_output_dir, latest_node,
+            {"can_select_next_parent": False},
+        )
         next_parent_genid = None
 
     # Even on errors or KeyboardInterrupt
@@ -617,6 +664,17 @@ def generate(
             # Run commands to check if the agents are compilable
             run_commands_to_check_compilation(container, run_baseline=run_baseline, edit_select_parent=edit_select_parent)
 
+            # Lightweight smoke test post-compilation
+            if not run_smoke_test(container):
+                safe_log(
+                    "Smoke test failed: TaskAgent"
+                    " not instantiable or forward()"
+                    " signature invalid."
+                    " Skipping evaluation."
+                )
+                run_eval = False
+                metadata["run_eval"] = False
+
         # Evaluate the produced agent
         if run_eval and "agent" in optimize_option:
             log_path = os.path.join(gen_output_dir, "generate.log")
@@ -739,6 +797,19 @@ def generate_loop(
 ):
     # Initialization
     docker_client = docker.DockerClient()
+
+    # Clean up orphaned containers from previous crashed runs
+    try:
+        for c in docker_client.containers.list(all=True):
+            if c.name and c.name.startswith(f"{REPO_NAME}-"):
+                try:
+                    safe_log(f"Removing orphaned container: {c.name}")
+                    c.remove(force=True)
+                except Exception:
+                    pass  # Best-effort cleanup
+    except Exception:
+        pass  # Don't block the main loop if cleanup fails
+
     parent_selection = "latest" if run_baseline == "no_archive" else parent_selection
     if resume_from:
         output_dir = os.path.normpath(os.path.abspath(resume_from))
