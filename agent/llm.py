@@ -39,6 +39,7 @@ def get_response_from_llm(
     temperature: float = 0.0,
     max_tokens: int = MAX_TOKENS,
     msg_history=None,
+    system_msg: str = None,
 ) -> Tuple[str, list, dict]:
     if msg_history is None:
         msg_history = []
@@ -49,7 +50,11 @@ def get_response_from_llm(
         for msg in msg_history
     ]
 
-    new_msg_history = msg_history + [{"role": "user", "content": msg}]
+    new_msg_history = []
+    # Prepend system message if provided
+    if system_msg is not None:
+        new_msg_history.append({"role": "system", "content": system_msg})
+    new_msg_history += msg_history + [{"role": "user", "content": msg}]
 
     # Build kwargs - handle model-specific requirements
     completion_kwargs = {
@@ -75,8 +80,16 @@ def get_response_from_llm(
             completion_kwargs["max_tokens"] = max_tokens
 
     response = litellm.completion(**completion_kwargs)
-    response_text = response['choices'][0]['message']['content']  # pyright: ignore
-    new_msg_history.append({"role": "assistant", "content": response['choices'][0]['message']['content']})
+    msg_content = response['choices'][0]['message']  # pyright: ignore
+    response_text = msg_content['content']
+    new_msg_history.append({
+        "role": "assistant",
+        "content": response_text,
+    })
+
+    # Strip system message from returned history
+    # (only needed for the API call)
+    new_msg_history = [m for m in new_msg_history if m.get("role") != "system"]
 
     # Convert content to text, compatible with MetaGen API
     new_msg_history = [
@@ -84,7 +97,27 @@ def get_response_from_llm(
         for msg in new_msg_history
     ]
 
-    return response_text, new_msg_history, {}
+    has_choices = (
+        hasattr(response, 'choices') and response.choices
+    )
+    has_usage = (
+        hasattr(response, 'usage') and response.usage
+    )
+    info = {
+        "finish_reason": (
+            response.choices[0].finish_reason
+            if has_choices else None
+        ),
+        "usage": (
+            dict(response.usage)
+            if has_usage else {}
+        ),
+        "model": (
+            response.model
+            if hasattr(response, 'model') else None
+        ),
+    }
+    return response_text, new_msg_history, info
 
 
 if __name__ == "__main__":
