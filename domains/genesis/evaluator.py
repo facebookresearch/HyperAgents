@@ -226,7 +226,6 @@ class EvaluatorManager:
                 agent = agent_factory.create_agent(chat_history_file=chat_history_file)
 
                 result = evaluator.run_episode(
-                    env_name,
                     task,
                     agent,
                     process_num=process_num,
@@ -331,15 +330,29 @@ class Evaluator:
         code_str = self.extract_code_str(response)
         # code_str = default_rewfn_string  # NOTE: uncomment this to use default reward function
         # save the reward function to a file
-        rwd_func_path = os.path.join(self.output_dir, f"reward_function_{episode_idx:02d}.py")
+        rwd_func_path = os.path.join(
+            self.output_dir,
+            f"reward_function_{episode_idx:02d}.py",
+        )
         self.save_reward_function(code_str, rwd_func_path)
 
         #  Phase 3: RL Training and Evaluation
         # 3.1 Launch RL training
-        train_log = self.run_rl_train(task, episode_idx, seed, rwd_func_path=rwd_func_path)
+        train_log = self.run_rl_train(
+            task, episode_idx, seed,
+            rwd_func_path=rwd_func_path,
+        )
         # 3.2 Launch RL evaluation
         if train_log["training_success"]:
-            eval_log = self.run_rl_eval(task, episode_idx, seed, rwd_func_path=rwd_func_path)
+            eval_log = self.run_rl_eval(
+                task, episode_idx, seed,
+                rwd_func_path=rwd_func_path,
+            )
+            episode_log = {**train_log, **eval_log}
+        else:
+            episode_log = {**train_log, "fitness": 0}
+
+        return episode_log
 
     def run_rl_train(self, task, episode_idx, seed, rwd_func_path=""):
         import subprocess
@@ -601,9 +614,19 @@ class Evaluator:
             # Try to extract reward function
             code_str = self.extract_reward_function(stripped)
             return code_str
-        except:
-            # raise ValueError("Failed to extract reward function from markdown code block")
-            return ""
+        except Exception as e:
+            logger.warning(f"Failed to extract reward function: {e}")
+            # Try to return the default reward function content
+            try:
+                from domains.genesis.genesis_utils import file_to_string
+                root_dir = self.config.utils.root_dir
+                default_rewfn_path = (
+                    f"{root_dir}/domains/genesis"
+                    "/reward/default_function.py"
+                )
+                return file_to_string(default_rewfn_path)
+            except Exception:
+                return ""
         
         # # Try to extract reward function from markdown code block 
         # try:
