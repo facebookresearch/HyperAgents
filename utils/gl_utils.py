@@ -141,9 +141,13 @@ def update_node_metadata(output_dir, genid, data_update):
         metadata = json.load(f)
     # Update metadata
     metadata.update(data_update)
-    # Save metadata
-    with open(metadata_file, "w") as f:
+    # Save metadata atomically
+    tmp_file = metadata_file + ".tmp"
+    with open(tmp_file, "w") as f:
         json.dump(metadata, f, indent=4)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_file, metadata_file)
 
 
 def get_node_metadata_key(output_dir, genid, key):
@@ -180,18 +184,16 @@ def load_archive_data(filepath, last_only=True):
     # Load all archives from given metadata file
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Metadata file not found at {filepath}")
-    # Read all JSON entries from the metadata file
-    content = read_file(filepath)
-    json_entries = content.split("\n{")
-    # Parse all JSON entries
+    # Read all JSON entries from the JSONL file (one JSON object per line)
     archive_data = []
-    for json_entry in json_entries:
-        # Add back the { if it was removed by split
-        if not json_entry.startswith("{"):
-            json_entry = "{" + json_entry
-        # Parse the JSON entry
-        metadata = json.loads(json_entry)
-        archive_data.append(metadata)
+    with open(filepath, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    archive_data.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
     # Return the last entry
     if last_only:
         return archive_data[-1]
@@ -354,6 +356,9 @@ def setup_initial_gen(
         readme_desc = get_readme_description(
             ensemble="ensemble" in optimize_option,
             edit_select_parent=edit_select_parent,
+            domains=domains,
+            generation=0,
+            eval_path=output_dir,
         )
         f.write(readme_desc)
 
@@ -370,11 +375,68 @@ def setup_initial_gen(
     return root_dir, commit_hash
 
 
-def get_readme_description(ensemble=False, edit_select_parent=False):
+def get_readme_description(
+    ensemble=False,
+    edit_select_parent=False,
+    domains=None,
+    generation=None,
+    eval_path=None,
+):
     desc = """# Self-Improving AI
 
 This system is designed to automatically produce agents for solving downstream tasks. The system iteratively improves the generated agents through code editing. To enable continuous improvement, the system should look at its code repository and the provided path to previously generated agents and their evaluation results, and then edit and enhance its own mechanisms for generating agents. This process creates a recursive loop of self-improvement.
 """
+
+    # Add domain and evaluation info
+    if domains:
+        domain_metrics = {
+            "search_arena": "overall_accuracy",
+            "paper_review": "overall_accuracy",
+            "imo_grading": "overall_accuracy",
+            "imo_proof": "points_percentage",
+        }
+        desc += "\n## Target Domains\n\n"
+        for d in domains:
+            if d in domain_metrics:
+                metric = domain_metrics[d]
+            elif "balrog" in d:
+                metric = "average_progress"
+            elif "genesis" in d:
+                metric = "average_fitness"
+            elif "polyglot" in d:
+                metric = "accuracy_score"
+            else:
+                metric = "score"
+            desc += f"- **{d}** (metric: `{metric}`)\n"
+
+    if generation is not None:
+        desc += (
+            f"\n## Current State\n\n"
+            f"This is generation **{generation}**"
+            f" (initial setup).\n"
+        )
+
+    if eval_path:
+        desc += (
+            f"\nEvaluation results from previous"
+            f" generations are stored at"
+            f" `{eval_path}`. Each generation"
+            f" folder (e.g., `gen_0/`, `gen_1/`)"
+            f" contains a"
+            f" `<domain>_eval/report.json`"
+            f" with scores.\n"
+        )
+
+    desc += """
+## Key Files
+
+- `meta_agent.py` — The meta agent that drives
+  self-improvement. It can modify any file.
+- `task_agent.py` — The task agent that solves downstream domain tasks.
+- `agent/` — LLM interface, tool definitions, and base agent classes.
+- `domains/` — Domain-specific evaluation and task code.
+"""
+
     if ensemble:
         desc += """\n## Optimize the Ensemble of Agents
 
@@ -604,6 +666,37 @@ def get_latest_can_select_parent(archive, output_dir, trunc_genid=None):
     # Shouldn't reach here
     print("shouldn't reach here")
     return None
+
+def run_smoke_test(container, repo_name=REPO_NAME):
+    """
+    Lightweight smoke test: verify TaskAgent is
+    instantiable and forward() has the right
+    signature. No actual LLM calls -- just import,
+    instantiate, and inspect.
+    Returns True on pass, False otherwise.
+    """
+    smoke_test_code = (
+        "from task_agent import TaskAgent; "
+        "agent = TaskAgent(model='claude-3-haiku-20240307'); "
+        "import inspect; "
+        "sig = inspect.signature(agent.forward); "
+        "print('smoke_test_passed')"
+    )
+    command = [
+        "timeout",
+        "60",  # 60s timeout
+        "python",
+        "-c",
+        smoke_test_code,
+    ]
+    try:
+        exec_result = container.exec_run(cmd=command, workdir=f"/{repo_name}")
+        log_container_output(exec_result)
+        output = exec_result.output.decode() if exec_result.output else ""
+        return exec_result.exit_code == 0 and "smoke_test_passed" in output
+    except Exception:
+        return False
+
 
 def run_commands_to_check_compilation(container, run_baseline=None, edit_select_parent=False):
     # Run commands to check if the agents are compilable
