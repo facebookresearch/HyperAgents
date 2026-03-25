@@ -1,5 +1,6 @@
 import asyncio
 import os
+import uuid
 
 def tool_info():
     return {
@@ -31,7 +32,7 @@ class BashSession:
         self._process = None
         self._timed_out = False
         self._timeout = 120.0  # seconds
-        self._sentinel = "<<exit>>"
+        self._sentinel = f"<<EXIT_{uuid.uuid4().hex}>>"
         self._output_delay = 0.2  # seconds
 
     async def start(self):
@@ -116,7 +117,7 @@ def filter_error(error):
         # Skip the next lines if ioctl error, add relevant lines
         if "Inappropriate ioctl for device" in line:
             i += 3
-            if '<<exit>>' in error_lines[i]:
+            if '<<EXIT_' in error_lines[i]:
                 i += 1
             while i < len(error_lines) - 1:
                 filtered_lines.append(error_lines[i])
