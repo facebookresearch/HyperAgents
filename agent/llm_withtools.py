@@ -95,7 +95,7 @@ def chat_with_agent(
     logging=print,
     tools_available=[],  # Empty list means no tools, 'all' means all tools
     multiple_tool_calls=False,  # Whether to allow multiple tool calls in a single response
-    max_tool_calls=40,  # Maximum number of tool calls allowed in a single response, -1 for unlimited
+    max_tool_calls=40,  # Max tool calls per response, -1=unlimited
 ):
     get_response_fn = get_response_from_llm
     # Construct message
@@ -107,15 +107,17 @@ def chat_with_agent(
         # Load all tools
         all_tools = load_tools(logging=logging, names=tools_available)
         tools_dict = {tool['info']['name']: tool for tool in all_tools}
-        system_msg = f"{get_tooluse_prompt([tool['info'] for tool in all_tools])}\n\n"
+        tool_infos = [t['info'] for t in all_tools]
+        tool_system_msg = get_tooluse_prompt(tool_infos)
         num_tool_calls = 0
 
-        # Call API
+        # Call API — tool descriptions sent as system message
         logging(f"Input: {repr(msg)}")
         response, new_msg_history, info = get_response_fn(
-            msg=system_msg + msg,
+            msg=msg,
             model=model,
             msg_history=new_msg_history,
+            system_msg=tool_system_msg,
         )
         logging(f"Output: {repr(response)}")
         # logging(f"Info: {repr(info)}")
@@ -139,13 +141,17 @@ def chat_with_agent(
                     tool_input = tool_use['tool_input']
                     tool_output = process_tool_call(tools_dict, tool_name, tool_input)
                     num_tool_calls += 1
-                    tool_msg = f'''<json>
-    {{
-        "tool_name": "{tool_name}",
-        "tool_input": {tool_input},
-        "tool_output": "{tool_output}"
-    }}
-    </json>'''.strip()
+                    tool_msg_data = {
+                        "tool_name": tool_name,
+                        "tool_input": tool_input,
+                        "tool_output": str(tool_output),
+                    }
+                    tool_json = json.dumps(
+                        tool_msg_data, indent=2,
+                    )
+                    tool_msg = (
+                        f"<json>\n{tool_json}\n</json>"
+                    )
                     logging(f"Tool output: {repr(tool_msg)}")
                     tool_msgs.append(tool_msg)
 
@@ -154,9 +160,10 @@ def chat_with_agent(
                 logging("Error: Output context exceeded. Please try again.")
                 tool_msgs.append("Error: Output context exceeded. Please try again.")
 
-            # Get tool response
+            # Get tool response — no system_msg on
+            # subsequent calls (already in context)
             response, new_msg_history, info = get_response_fn(
-                msg=system_msg + '\n\n'.join(tool_msgs),
+                msg='\n\n'.join(tool_msgs),
                 model=model,
                 msg_history=new_msg_history,
             )
