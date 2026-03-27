@@ -1,7 +1,4 @@
-# Use an official Python runtime as the base image
-# FROM python:3.12-slim
 # Base image with GPU support
-# FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
 FROM nvidia/cuda:13.0.0-devel-ubuntu22.04
 
 # Set CUDA and NVIDIA library paths
@@ -143,15 +140,9 @@ RUN pip install -e proofgrader_repo
 # Download things for balrog domains
 RUN python -m domains.balrog.scripts.post_install
 
-# For Genesis: install PyTorch with CUDA support
+# For Genesis: install PyTorch with CUDA 13.0 support
 # First check the Cuda version: nvidia-smi
-# If Cuda version is 11.8:
-# RUN pip install --no-cache-dir torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu118
-# If Cuda version is 12.1:
-# RUN pip install --no-cache-dir torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu121
-# If Cuda version is 12.4:
-# RUN pip install --no-cache-dir torch==2.6.0 torchvision==0.21.0 --index-url  https://download.pytorch.org/whl/cu124
-# If Cuda version is 13.0:
+# For other CUDA versions, adjust the --index-url accordingly (e.g., cu118, cu121, cu124)
 RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 
 # Ensure the libcuda symlink fix runs before your command
