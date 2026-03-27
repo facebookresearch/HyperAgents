@@ -1,8 +1,4 @@
 <div align="center">
-
-<!-- Logo/Banner placeholder - uncomment and add your image -->
-<!-- <img src="assets/banner.png" alt="HyperAgents Banner" width="800"> -->
-
 <h1>HyperAgents</h1>
 
 <p>Self-referential self-improving agents that can optimize for any computable task</p>
