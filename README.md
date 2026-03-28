@@ -71,7 +71,7 @@ By default, outputs will be saved in `outputs/` directory.
 The experiment logs are stored as a multi-part ZIP archive. To extract them, ensure all .z01, .z02, etc., files are in the same directory as the .zip file, then run:
 ```bash
 zip -s 0 outputs_os_parts.zip --out unsplit_logs.zip
-unzip unsplit_outputs.zip
+unzip unsplit_logs.zip
 ```
 
 ## Safety Consideration
