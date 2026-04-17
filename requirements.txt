@@ -1,4 +1,4 @@
-requests==2.32.4
+requests==2.33.0
 dotenv==0.9.9
 tqdm==4.67.1
 backoff==2.2.1
