@@ -45,7 +45,6 @@ def collect_and_summarize_results(output_dir):
         for dir in dirs
         if dir.startswith("genesis_eval")
     ]
-    print(f"DEBUG: Found genesis_eval directories: {genesis_eval_dirs}")
 
     # From each genesis_eval/ folder, find all .json files
     json_files = []
@@ -55,7 +54,6 @@ def collect_and_summarize_results(output_dir):
                 if filename.endswith(".json"):
                     json_filepath = os.path.join(root, filename)
                     json_files.append(json_filepath)
-    print(f"DEBUG: Found JSON files: {json_files}")
 
     # Each json file is a separate run, so we need to group them by tasks
     # Each json file has the name format of {task}_run_{run_id}.json
