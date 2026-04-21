@@ -11,8 +11,45 @@ class MetaAgent(AgentSystem):
         Args:
             repo_path (str): The path to the repository.
             eval_path (str): The path to previously generated agents and their evaluation results.
-            iterations_left (int, optional): The number of remaining iterations in which the meta agent will be invoked in future. Defaults to None.
+            iterations_left (int, optional): Number of
+                remaining meta-agent iterations.
+                Defaults to None.
         """
-        instruction = f"Modify any part of the codebase at `{repo_path}`."
+        instruction = (
+            f"Modify any part of the codebase"
+            f" at `{repo_path}`."
+        )
+        instruction += (
+            f"\n\nStart by reading"
+            f" `{repo_path}/README.md`"
+            f" for orientation on the system"
+            f" and file structure."
+        )
+        instruction += (
+            f"\n\nPrevious generations and their"
+            f" evaluation results are at"
+            f" `{eval_path}`. Analyze these to"
+            f" understand current performance."
+        )
+        if iterations_left is not None:
+            instruction += (
+                f"\n\nYou have {iterations_left}"
+                f" iteration(s) remaining."
+                f" Budget your changes accordingly."
+            )
+        instruction += (
+            "\n\nSuggested approach:"
+            " 1) Read evaluation results to"
+            " identify bottlenecks,"
+            " 2) Analyze the relevant code,"
+            " 3) Implement targeted"
+            " improvements."
+        )
 
-        new_msg_history = chat_with_agent(instruction, model=self.model, msg_history=[], logging=self.log, tools_available='all')
+        new_msg_history = chat_with_agent(
+            instruction,
+            model=self.model,
+            msg_history=[],
+            logging=self.log,
+            tools_available='all',
+        )
