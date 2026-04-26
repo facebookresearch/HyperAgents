@@ -5,7 +5,7 @@ backoff==2.2.1
 matplotlib==3.10.3
 docker==7.1.0
 datasets==3.6.0
-GitPython==3.1.44
+GitPython==3.1.47
 litellm==1.74.9
 pandas==2.3.2
 sympy==1.14.0
