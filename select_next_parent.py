@@ -1,5 +1,3 @@
-import random
-
 import numpy as np
 
 from utils.gl_utils import (
@@ -13,7 +11,11 @@ from utils.domain_utils import get_domain_splits
 
 def select_next_parent(archive, output_dir, domains):
     """
-    Selects the next parent to continue open-ended exploration.
+    Selects the next parent to continue open-ended exploration via
+    novelty-weighted sampling: candidates with fewer descendants are
+    preferentially selected (probability inversely proportional to
+    1 + their child count). This encourages the search to spread across
+    the archive rather than concentrating on a few popular branches.
 
     Args:
         archive (list): List of generations in the archive.
@@ -46,12 +48,18 @@ def select_next_parent(archive, output_dir, domains):
     if not candidates:
         raise ValueError("No evaluation results found in archive.")
 
-    # Build child counts from metadata
+    # Build child counts from metadata: how many descendants each candidate
+    # has spawned. Used below for novelty-weighted selection.
     child_counts = {genid: 0 for genid in candidates}
     for genid in archive:
         parent = get_parent_genid(output_dir, genid)
         if parent in child_counts:
             child_counts[parent] += 1
 
-    # Select parent randomly, keeping the search space open
-    return random.choice(list(candidates.keys()))
+    # Novelty-weighted sampling: probability inversely proportional to
+    # (1 + child_count). Under-explored candidates are preferred, which
+    # reduces mode collapse and keeps the search space open.
+    candidate_ids = list(candidates.keys())
+    weights = np.array([1.0 / (1.0 + child_counts[c]) for c in candidate_ids])
+    probabilities = weights / weights.sum()
+    return str(np.random.choice(candidate_ids, p=probabilities))
