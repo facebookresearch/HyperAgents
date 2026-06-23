@@ -15,6 +15,12 @@ def select_next_parent(archive, output_dir, domains):
     """
     Selects the next parent to continue open-ended exploration.
 
+    Uses novelty-weighted selection: candidates with fewer children are
+    preferentially picked so the search explores under-explored branches
+    rather than repeatedly sampling the same parent. This is the standard
+    mechanism used by FunSearch, MAP-Elites, and AlphaEvolve to prevent
+    mode collapse during open-ended search.
+
     Args:
         archive (list): List of generations in the archive.
         output_dir (str): Output directory for the generation.
@@ -53,5 +59,13 @@ def select_next_parent(archive, output_dir, domains):
         if parent in child_counts:
             child_counts[parent] += 1
 
-    # Select parent randomly, keeping the search space open
-    return random.choice(list(candidates.keys()))
+    # Novelty-weighted selection: probability inversely proportional to
+    # (1 + child_count), so under-explored branches are preferentially picked.
+    # This prevents mode collapse where a single high-scoring parent
+    # dominates the archive's evolutionary tree.
+    weights = np.array([1.0 / (1 + child_counts[genid]) for genid in candidates])
+    weights /= weights.sum()
+
+    candidates_list = list(candidates.keys())
+    chosen = np.random.choice(candidates_list, p=weights)
+    return str(chosen)
