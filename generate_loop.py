@@ -740,6 +740,20 @@ def generate_loop(
     # Initialization
     docker_client = docker.DockerClient()
     parent_selection = "latest" if run_baseline == "no_archive" else parent_selection
+
+    # Polyglot is evaluated through its own harness (run_harness_polyglot), so
+    # `generate` only handles the other domains. Filter the per-domain
+    # evaluation arguments alongside the domain list; otherwise, when polyglot
+    # is not the last domain in `domains`, every domain after it would receive
+    # polyglot's eval_subset / eval_samples due to the positional zip inside
+    # generate().
+    non_polyglot_domains = [d for d in domains if d != "polyglot"]
+    non_polyglot_eval_subsets = [
+        s for d, s in zip(domains, eval_subsets) if d != "polyglot"
+    ]
+    non_polyglot_eval_samples = [
+        n for d, n in zip(domains, eval_samples) if d != "polyglot"
+    ]
     if resume_from:
         output_dir = os.path.normpath(os.path.abspath(resume_from))
         run_id = os.path.basename(output_dir).split("generate_")[-1]
@@ -821,16 +835,16 @@ def generate_loop(
             archive = update_and_save_archive(output_dir, [], new_node=0)
             metadata = generate(
                 docker_client,
-                [d for d in domains if d != "polyglot"],
+                non_polyglot_domains,
                 output_dir,
                 run_id,
                 current_genid=0,
                 parent_genid=None,
                 root_dir=root_dir,
                 root_commit=root_commit,
-                eval_samples=eval_samples,
+                eval_samples=non_polyglot_eval_samples,
                 eval_workers=eval_workers,
-                eval_subsets=eval_subsets,
+                eval_subsets=non_polyglot_eval_subsets,
                 meta_patch_files=meta_patch_files,
                 run_meta_agent=False,
                 run_baseline=run_baseline,
@@ -900,16 +914,16 @@ def generate_loop(
     for current_genid in range(start_genid, max_generation + 1):
         metadata = generate(
             docker_client,
-            [d for d in domains if d != "polyglot"],
+            non_polyglot_domains,
             output_dir,
             run_id,
             current_genid,
             parent_genid=parent_genid,
             root_dir=root_dir,
             root_commit=root_commit,
-            eval_samples=eval_samples,
+            eval_samples=non_polyglot_eval_samples,
             eval_workers=eval_workers,
-            eval_subsets=eval_subsets,
+            eval_subsets=non_polyglot_eval_subsets,
             meta_patch_files=meta_patch_files,
             run_meta_agent=True,
             run_baseline=run_baseline,
