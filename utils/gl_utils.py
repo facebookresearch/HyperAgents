@@ -304,7 +304,15 @@ def setup_initial_gen(
         if os.path.isdir(os.path.join("./domains", folder_name)) and not any(folder_name in d for d in domains)
     })
     excluded_files_domains = {}
-    excluded_patterns_domains = ["venv*", "__pycache__*", "*.png"]
+    # Exclude test splits from the MetaAgent workspace to prevent
+    # leakage (Issue #39). Only affects ./domains copy via
+    # ignore_function_domains; tests/ outside domains/ unaffected.
+    excluded_patterns_domains = [
+        "venv*",
+        "__pycache__*",
+        "*.png",
+        "*test*",
+    ]
 
     # Function to ignore specific files/directories
     source_root = os.path.abspath(copy_root_dir or "./")
